@@ -224,6 +224,17 @@ app.patch('/api/testimonials/:id', (req, res) => {
   }
 });
 
+app.delete('/api/testimonials/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const list = getTestimonials().map(migrateTestimonial).filter(t => t.id !== id);
+    setTestimonials(list);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ═══ BLOG ═══
 const BLOG_KEY = 'winglish_blog_posts';
 

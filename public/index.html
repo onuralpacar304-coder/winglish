@@ -737,6 +737,8 @@ textarea.form-input{min-height:80px;resize:vertical}
         <div class="admin-accordion-body">
           <div style="font-size:0.75rem;color:rgba(255,255,255,0.35);margin-bottom:0.8rem">Velilerin yazdığı yorumlar burada görünür. Onaylayınca yayınlanır; istersen altına kendi yanıtını ekleyebilirsin.</div>
           <div id="adminTestimonialsPendingList"></div>
+          <div style="font-size:0.8rem;font-weight:800;color:rgba(255,255,255,0.6);margin-top:1.2rem;margin-bottom:0.5rem">Yayındaki yorumlar</div>
+          <div id="adminTestimonialsApprovedList"></div>
         </div>
       </div>
 
@@ -1361,8 +1363,7 @@ function buildAdminTestimonialsPending() {
     if (!el) return;
     if (!Array.isArray(pending) || pending.length === 0) {
       el.innerHTML = '<div style="text-align:center;padding:1.5rem;color:rgba(255,255,255,0.35);font-size:0.9rem">Bekleyen yorum yok.</div>';
-      return;
-    }
+    } else {
     el.innerHTML = pending.map(t => `
       <div class="admin-testimonial-item" data-id="${(t.id||'').replace(/"/g,'&quot;')}">
         <div style="font-size:0.9rem;font-weight:800;color:#fff;margin-bottom:0.4rem">${(t.name || '—').replace(/</g,'&lt;')}</div>
@@ -1376,7 +1377,56 @@ function buildAdminTestimonialsPending() {
         </div>
       </div>
     `).join('');
+    }
+    buildAdminTestimonialsApproved();
   });
+}
+
+function buildAdminTestimonialsApproved() {
+  fetchTestimonials(function(approved) {
+    const el = document.getElementById('adminTestimonialsApprovedList');
+    if (!el) return;
+    if (!Array.isArray(approved) || approved.length === 0) {
+      el.innerHTML = '<div style="text-align:center;padding:1rem;color:rgba(255,255,255,0.35);font-size:0.85rem">Yayında yorum yok.</div>';
+      return;
+    }
+    el.innerHTML = approved.map(t => {
+      const replyHtml = (t.adminReply && t.adminReply.trim()) ? '<div style="font-size:0.8rem;color:rgba(255,255,255,0.6);margin-top:0.4rem">👨‍🏫 Yanıtın: ' + (t.adminReply || '').replace(/</g,'&lt;').replace(/\n/g,' ') + '</div>' : '';
+      return `
+      <div class="admin-testimonial-item" data-id="${(t.id||'').replace(/"/g,'&quot;')}" style="margin-bottom:0.6rem">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:0.5rem;flex-wrap:wrap">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:0.9rem;font-weight:800;color:#fff">${(t.name || '—').replace(/</g,'&lt;')}</div>
+            <div style="font-size:0.85rem;color:rgba(255,255,255,0.8);line-height:1.45">${(t.text || '').replace(/</g,'&lt;').replace(/\n/g,'<br>')}</div>
+            ${replyHtml}
+          </div>
+          <button class="btn-red-sm" onclick="deleteTestimonial('${(t.id||'').replace(/'/g,"\\'")}')" title="Yorumu sil">Sil</button>
+        </div>
+      </div>
+    `}).join('');
+  });
+}
+
+function deleteTestimonial(id) {
+  if (!confirm('Bu yorumu silmek istediğinize emin misiniz? Yayından kalkacak.')) return;
+  const base = getServerBase();
+  if (base) {
+    fetch(base + '/api/testimonials/' + encodeURIComponent(id), { method: 'DELETE' })
+      .then(r => r.json()).then(function() {
+        buildAdminTestimonialsPending();
+        if (typeof showToast === 'function') showToast('Yorum silindi.');
+      }).catch(function() {
+        const list = loadTestimonialsLocal().filter(t => t.id !== id);
+        saveTestimonialsLocal(list);
+        buildAdminTestimonialsPending();
+        if (typeof showToast === 'function') showToast('Yorum silindi.');
+      });
+  } else {
+    const list = loadTestimonialsLocal().filter(t => t.id !== id);
+    saveTestimonialsLocal(list);
+    buildAdminTestimonialsPending();
+    if (typeof showToast === 'function') showToast('Yorum silindi.');
+  }
 }
 
 function openAdminTestimonialsAccordion() {
