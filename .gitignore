@@ -1,0 +1,5 @@
+node_modules/
+winglish.db
+.env
+*.log
+.DS_Store
