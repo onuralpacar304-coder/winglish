@@ -6,6 +6,11 @@
  * - POST /api/testimonials: yeni veli yorumu ekle (body: { name, text })
  * - Statik: public/ (index.html = ana uygulama)
  */
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught error:', err);
+  process.exit(1);
+});
+
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
