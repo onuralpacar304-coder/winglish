@@ -1,5 +1,6 @@
 node_modules/
 winglish.db
+winglish-data.json
 .env
 *.log
 .DS_Store

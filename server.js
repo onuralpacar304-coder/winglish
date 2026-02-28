@@ -15,7 +15,6 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
-const Database = require('better-sqlite3');
 const nodemailer = require('nodemailer');
 
 const PORT = process.env.PORT || 3000;
@@ -26,18 +25,36 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
-const dbPath = path.join(__dirname, 'winglish.db');
-const db = new Database(dbPath);
+// JSON dosyası ile depolama (Render vb. ortamlarda native SQLite sorun çıkarmasın diye)
+const dataPath = path.join(__dirname, 'winglish-data.json');
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS kv (
-    key TEXT PRIMARY KEY,
-    value TEXT
-  );
-`);
+function loadKv() {
+  try {
+    const raw = fs.readFileSync(dataPath, 'utf8');
+    return JSON.parse(raw);
+  } catch (_) {
+    return {};
+  }
+}
 
-const getStmt = db.prepare('SELECT value FROM kv WHERE key = ?');
-const setStmt = db.prepare('INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)');
+function saveKv(kv) {
+  fs.writeFileSync(dataPath, JSON.stringify(kv), 'utf8');
+}
+
+let kv = loadKv();
+
+const getStmt = {
+  get(key) {
+    return kv[key] != null ? { value: kv[key] } : undefined;
+  }
+};
+
+const setStmt = {
+  run(key, value) {
+    kv[key] = value;
+    saveKv(kv);
+  }
+};
 
 function getTestimonials() {
   const row = getStmt.get(TESTIMONIALS_KEY);
