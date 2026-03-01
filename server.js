@@ -22,7 +22,7 @@ const ADMIN_EMAIL = process.env.ADMIN_EMAIL || '';
 const TESTIMONIALS_KEY = 'winglish_testimonials';
 
 const app = express();
-app.use(cors());
+app.use(cors({ origin: true, credentials: false })); // tüm origin'lere izin
 app.use(express.json({ limit: '10mb' }));
 
 // JSON dosyası ile depolama (Render vb. ortamlarda native SQLite sorun çıkarmasın diye)
@@ -115,13 +115,10 @@ function getData() {
 
 function setData(data) {
   const keys = Object.keys(data).filter(k => k.startsWith('winglish_'));
-  const run = db.transaction(() => {
-    for (const k of keys) {
-      const v = data[k];
-      setStmt.run(k, typeof v === 'string' ? v : JSON.stringify(v));
-    }
-  });
-  run();
+  for (const k of keys) {
+    const v = data[k];
+    setStmt.run(k, typeof v === 'string' ? v : JSON.stringify(v));
+  }
 }
 
 app.get('/api/data', (req, res) => {

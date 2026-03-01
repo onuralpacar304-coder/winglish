@@ -884,7 +884,7 @@ textarea.form-input{min-height:80px;resize:vertical}
           <div style="font-size:0.8rem;font-weight:700;color:rgba(255,255,255,0.6);margin-bottom:0.5rem">Sunucu (çoklu cihaz + e-posta bildirimi)</div>
           <div class="form-row" style="margin-bottom:0.4rem">
             <label class="form-label">Sunucu adresi</label>
-            <input type="url" id="serverUrlInput" class="form-input" placeholder="https://your-app.fly.dev">
+            <input type="url" id="serverUrlInput" class="form-input" placeholder="https://winglish.tr" value="">
           </div>
           <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.4rem">
             <button type="button" class="btn-green-sm" onclick="syncFromServer()">Sunucudan çek</button>
@@ -1105,6 +1105,7 @@ const STUDENT_PASSWORDS_KEY = 'winglish_student_passwords';
 const CONTACT_MESSAGES_KEY = 'winglish_contact_messages';
 const INBOX_SEEN_KEY = 'winglish_inbox_seen_count';
 const SERVER_URL_KEY = 'winglish_server_url';
+const DEFAULT_SERVER_URL = 'https://winglish.tr';
 const CONTACT_FORM_TITLE_KEY = 'winglish_contact_form_title';
 const TESTIMONIALS_STORAGE_KEY = 'winglish_testimonials';
 const BLOG_STORAGE_KEY = 'winglish_blog_posts';
@@ -1157,6 +1158,13 @@ function saveHwData() {
 let hwData = loadHwData();
 let submissions = (function(){ try{ const v=localStorage.getItem('winglish_submissions'); return v?JSON.parse(v):[]; }catch(e){return [];} })();
 let sNotifs    = (function(){ try{ const v=localStorage.getItem('winglish_sNotifs'); return v?JSON.parse(v):{};  }catch(e){return {};} })();
+
+function reloadHwAndNotifsFromStorage() {
+  hwData = loadHwData();
+  try { submissions = JSON.parse(localStorage.getItem('winglish_submissions') || '[]'); } catch(e) { submissions = []; }
+  try { sNotifs = JSON.parse(localStorage.getItem('winglish_sNotifs') || '{}'); } catch(e) { sNotifs = {}; }
+}
+
 let selectedStudent = null;
 let adminStudent = null;
 let activeAssignmentIndex = 0;
@@ -1248,9 +1256,10 @@ function saveTestimonialsLocal(arr) {
 function getServerBase() {
   try {
     const url = localStorage.getItem(SERVER_URL_KEY);
-    if (url && typeof url === 'string' && url.trim()) return url.trim().replace(/\/$/, '');
+    if (url && typeof url === 'string' && url.trim()) return url.trim().replace(/\/+$/, '');
+    return DEFAULT_SERVER_URL;
   } catch(e) {}
-  return '';
+  return DEFAULT_SERVER_URL;
 }
 
 function fetchTestimonials(cb) {
@@ -1633,6 +1642,7 @@ function saveBlogLocalFallback(id, title, excerpt, body) {
   cancelAdminBlogForm();
   buildAdminBlogSection();
   showToast(id ? 'Yazı güncellendi' : 'Yazı eklendi');
+  syncToServerSilent();
 }
 
 function deleteAdminBlogPost(id) {
@@ -1650,6 +1660,7 @@ function deleteBlogLocalFallback(id) {
   saveBlogLocal(list);
   buildAdminBlogSection();
   showToast('Yazı silindi');
+  syncToServerSilent();
 }
 
 function getStudentPasswords() {
@@ -1690,9 +1701,13 @@ function go(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   window.scrollTo(0,0);
-  if (id === 's-students') buildGrid();
+  if (id === 's-welcome') {
+    updateNewsTitle();
+    renderHomeNews();
+  }
+  if (id === 's-students') { reloadHwAndNotifsFromStorage(); buildGrid(); }
   if (id === 's-admin') buildAdminPanel();
-  if (id === 's-packages') renderPackagesPage();
+  if (id === 's-packages') { updatePackagesPageTexts(); updateContactFormTitle(); updateContactFormLabels(); renderPackagesPage(); }
   if (id === 's-testimonials') renderTestimonialsPage();
   if (id === 's-blog') renderBlogPage();
 }
@@ -1771,10 +1786,42 @@ function updateContactFormLabels() {
   set('contactLabelMetin', labels.metin);
 }
 
-// initial render for home news and packages list
-updateNewsTitle();
-renderHomeNews();
-renderPackagesPage();
+// Açılışta sunucudan veri çek (tüm tarayıcılar/cihazlar aynı içeriği görsün)
+function trySyncFromServerThenRender() {
+  const origin = typeof window !== 'undefined' && window.location && window.location.origin;
+  const base = (origin && origin !== 'null' && origin !== 'file://' ? origin : '');
+  if (!base) {
+    doInitialRender();
+    return;
+  }
+  // Sunucu yanıtını bekle; böylece her tarayıcı aynı (sunucudaki) veriyi kullanır
+  const timeout = setTimeout(() => { doInitialRender(); }, 8000);
+  fetch(base + '/api/data', { cache: 'no-store' })
+    .then(r => r.json())
+    .then(data => {
+      clearTimeout(timeout);
+      if (data && typeof data === 'object') {
+        const keys = Object.keys(data).filter(k => k.startsWith('winglish_'));
+        keys.forEach(k => { try { localStorage.setItem(k, typeof data[k] === 'string' ? data[k] : JSON.stringify(data[k])); } catch(e) {} });
+        if (typeof reloadHwAndNotifsFromStorage === 'function') reloadHwAndNotifsFromStorage();
+      }
+      doInitialRender();
+    })
+    .catch(() => {
+      clearTimeout(timeout);
+      doInitialRender();
+    });
+}
+function doInitialRender() {
+  updateNewsTitle();
+  renderHomeNews();
+  renderPackagesPage();
+  updateContactFormTitle();
+  updateContactFormLabels();
+}
+
+// initial render for home news and packages list (sunucudan sync denendikten sonra)
+trySyncFromServerThenRender();
 
 function renderHomeNews() {
   const container = document.getElementById('homeNewsList');
@@ -2031,6 +2078,7 @@ function saveNewsFromAdmin() {
   renderHomeNews();
   renderAdminNewsList();
   showToast('✅ Duyurular güncellendi');
+  syncToServerSilent();
 }
 
 function sendContactMessage() {
@@ -2068,6 +2116,7 @@ function savePackagesPageTextsFromAdmin() {
   if (subInput) try { localStorage.setItem(PACKAGES_PAGE_SUB_KEY, (subInput.value || '').trim()); } catch(e) {}
   updatePackagesPageTexts();
   showToast('Paketler sayfası başlıkları kaydedildi');
+  syncToServerSilent();
 }
 
 function saveContactFormTitleFromAdmin() {
@@ -2077,6 +2126,7 @@ function saveContactFormTitleFromAdmin() {
   localStorage.setItem(CONTACT_FORM_TITLE_KEY, title);
   updateContactFormTitle();
   showToast('İletişim formu başlığı kaydedildi');
+  syncToServerSilent();
 }
 
 function saveContactLabelsFromAdmin() {
@@ -2092,6 +2142,7 @@ function saveContactLabelsFromAdmin() {
   });
   updateContactFormLabels();
   showToast('Etiketler kaydedildi');
+  syncToServerSilent();
 }
 
 function onAdminPkgImageUpload(ev) {
@@ -2196,6 +2247,7 @@ function savePackageFromAdmin() {
   renderAdminPackagesList();
   renderPackagesPage();
   showToast('Paket kaydedildi');
+  syncToServerSilent();
 }
 
 function deletePackageFromAdmin(id) {
@@ -2205,6 +2257,7 @@ function deletePackageFromAdmin(id) {
   renderAdminPackagesList();
   renderPackagesPage();
   showToast('Paket silindi');
+  syncToServerSilent();
 }
 
 function renderAdminPackagesList() {
@@ -2276,6 +2329,7 @@ function getAssignments(name) {
 }
 
 function openHomeworkList(s) {
+  reloadHwAndNotifsFromStorage();
   const assignments = getAssignments(s.name);
   document.getElementById('hwName').textContent = s.name;
   const now = new Date();
@@ -2865,9 +2919,9 @@ function getServerUrl() {
   const el = document.getElementById('serverUrlInput');
   const url = (el && el.value || '').trim().replace(/\/+$/, '');
   if (url) try { localStorage.setItem(SERVER_URL_KEY, url); } catch(e) {}
-  const saved = (localStorage.getItem(SERVER_URL_KEY) || '').trim();
+  const saved = (localStorage.getItem(SERVER_URL_KEY) || '').trim().replace(/\/+$/, '');
   const origin = typeof window !== 'undefined' && window.location && window.location.origin;
-  return url || saved || (origin && origin !== 'null' ? origin : '');
+  return url || saved || (origin && origin !== 'null' ? origin : '') || DEFAULT_SERVER_URL;
 }
 
 function syncFromServer() {
@@ -2882,17 +2936,38 @@ function syncFromServer() {
   }).catch(e => { alert('Sunucudan alınamadı: ' + (e.message || 'Bağlantı hatası')); });
 }
 
+/** Sunucu adresi ayarlıysa verileri sunucuya gönderir; hata/uyarı göstermez (kaydet sonrası otomatik sync için). */
+function syncToServerSilent() {
+  const base = getServerBase();
+  if (!base) return;
+  const data = { _version: 1 };
+  BACKUP_KEYS.forEach(k => { const v = localStorage.getItem(k); if (v != null) data[k] = v; });
+  const url = base.replace(/\/+$/, '') + '/api/data';
+  fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data), mode: 'cors' })
+    .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(() => { if (typeof showToast === 'function') showToast('Sunucuya senkronize edildi'); })
+    .catch(() => {});
+}
+
 function syncToServer() {
   const base = getServerUrl();
   if (!base) { alert('Lütfen sunucu adresini girin veya siteyi sunucuyla aynı adreste açın.'); return; }
   const data = { _version: 1 };
   BACKUP_KEYS.forEach(k => { const v = localStorage.getItem(k); if (v != null) data[k] = v; });
-  fetch(base + '/api/data', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(r => { if (!r.ok) throw new Error(r.statusText); return r.json(); }).then(() => {
-    if (typeof showToast === 'function') showToast('Veriler sunucuya gönderildi');
-  }).catch(e => { alert('Sunucuya gönderilemedi: ' + (e.message || 'Bağlantı hatası')); });
+  const url = base.replace(/\/+$/, '') + '/api/data';
+  fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data), mode: 'cors' })
+    .then(r => {
+      if (!r.ok) return r.text().then(t => { throw new Error(r.status + ' ' + (t || r.statusText)); });
+      return r.json();
+    })
+    .then(() => {
+      if (typeof showToast === 'function') showToast('Veriler sunucuya gönderildi');
+    })
+    .catch(e => { alert('Sunucuya gönderilemedi: ' + (e.message || 'Bağlantı hatası')); });
 }
 
 function buildAdminPanel() {
+  reloadHwAndNotifsFromStorage();
   updateAdminBadge();
   const tabs = document.getElementById('adminTabs');
   tabs.innerHTML = '';
@@ -2906,7 +2981,7 @@ function buildAdminPanel() {
   const formTitleInput = document.getElementById('adminContactFormTitle');
   if (formTitleInput) formTitleInput.value = localStorage.getItem(CONTACT_FORM_TITLE_KEY) || 'Bilgi almak için mesaj bırakın';
   const serverUrlEl = document.getElementById('serverUrlInput');
-  if (serverUrlEl) serverUrlEl.value = localStorage.getItem(SERVER_URL_KEY) || '';
+  if (serverUrlEl) serverUrlEl.value = (localStorage.getItem(SERVER_URL_KEY) || '').trim() || DEFAULT_SERVER_URL;
   const labels = getContactLabels();
   const setAdminLabel = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
   setAdminLabel('adminLabelAdSoyad', labels.adSoyad);
