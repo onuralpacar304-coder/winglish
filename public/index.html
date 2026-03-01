@@ -867,8 +867,8 @@ textarea.form-input{min-height:80px;resize:vertical}
         </div>
       </div>
 
-      <!-- Yedekleme ve senkronizasyon -->
-      <div class="editor-card admin-accordion" style="margin-bottom:1.2rem">
+      <!-- Yedekleme ve senkronizasyon (varsayılan açık) -->
+      <div class="editor-card admin-accordion open" style="margin-bottom:1.2rem">
         <div class="admin-accordion-head">
           <div class="admin-accordion-trigger" onclick="toggleAdminAccordion(this)">
             <h3>💾 Yedekleme &amp; Senkronizasyon</h3>
@@ -887,6 +887,7 @@ textarea.form-input{min-height:80px;resize:vertical}
             <input type="url" id="serverUrlInput" class="form-input" placeholder="https://winglish.tr" value="">
           </div>
           <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.4rem">
+            <button type="button" class="btn-green-sm" onclick="testServerConnection()">Bağlantıyı test et</button>
             <button type="button" class="btn-green-sm" onclick="syncFromServer()">Sunucudan çek</button>
             <button type="button" class="btn-green-sm" onclick="syncToServer()">Sunucuya gönder</button>
           </div>
@@ -2949,6 +2950,23 @@ function syncToServerSilent() {
     .catch(() => {});
 }
 
+function testServerConnection() {
+  const base = getServerUrl();
+  if (!base) { alert('Önce Sunucu adresini girin.'); return; }
+  const url = base.replace(/\/+$/, '') + '/api/data';
+  if (typeof showToast === 'function') showToast('Test ediliyor: ' + url);
+  fetch(url, { method: 'GET', cache: 'no-store', mode: 'cors' })
+    .then(r => {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
+    .then(() => { alert('Bağlantı başarılı.\n\n' + url + ' adresi çalışıyor. "Sunucuya gönder" kullanabilirsiniz.'); })
+    .catch(e => {
+      const errText = (e && (e.message || e.toString())) || 'Bilinmeyen hata';
+      alert('Bağlantı başarısız.\n\nHata: ' + errText + '\nAdres: ' + url + '\n\n• Sunucu adresini kontrol edin (https://...)\n• Backend (Node) bu adreste çalışıyor olmalı.\n• Render kullanıyorsanız winglish.onrender.com gibi servis URL\'ini deneyin.');
+    });
+}
+
 function syncToServer() {
   const base = getServerUrl();
   if (!base) { alert('Lütfen sunucu adresini girin veya siteyi sunucuyla aynı adreste açın.'); return; }
@@ -2963,7 +2981,11 @@ function syncToServer() {
     .then(() => {
       if (typeof showToast === 'function') showToast('Veriler sunucuya gönderildi');
     })
-    .catch(e => { alert('Sunucuya gönderilemedi: ' + (e.message || 'Bağlantı hatası')); });
+    .catch(e => {
+      const url = base.replace(/\/+$/, '') + '/api/data';
+      const errText = (e && (e.message || e.toString())) || 'Bağlantı hatası';
+      alert('Sunucuya gönderilemedi.\n\nHata: ' + errText + '\n\nAdres: ' + url + '\n\nÖnce "Bağlantıyı test et" ile sunucunun açık olduğundan emin olun. Site farklı bir yerde (örn. winglish.tr) host ediliyorsa backend (Node) ayrı bir adreste (örn. winglish.onrender.com) çalışıyor olabilir.');
+    });
 }
 
 function buildAdminPanel() {

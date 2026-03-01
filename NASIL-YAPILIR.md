@@ -71,8 +71,8 @@ Kodda değişiklik yaptıysan (veya biri yaptırdıysan) canlı sitede görmek i
 **Duyurularım mobilde / başka tarayıcıda eski görünüyor.**  
 → Sunucu adresinin Admin → Yedekleme bölümünde doğru ayarlı olduğundan emin ol. Duyuru/paket kaydettiğinde veri otomatik sunucuya gider; diğer cihazda sayfayı yenile (mümkünse Cmd+Shift+R veya cache temizle).
 
-**“Sunucuya gönder” hata veriyor.**  
-→ Sunucu adresini, siteyi açtığın adresle aynı yap. Site uyku modundaysa (Render ücretsiz) önce sayfayı açıp 1–2 dakika bekle, sonra tekrar dene.
+**“Sunucuya gönder” / “Bağlantı hatası” veriyor.**  
+→ 1) Siteyi **https://winglish.onrender.com** adresinden aç. 2) Admin → Yedekleme’de **Sunucu adresi**ni **https://winglish.onrender.com** yapıp “Sunucuya gönder”i dene. Backend Render’da bu adreste çalışıyorsa bu çalışır. winglish.tr bazen aynı sunucuya yönlense de bağlantı hatası verebilir; o zaman doğrudan onrender.com adresini kullan. 3) Render ücretsiz planda uyku modundaysa önce siteyi açıp 1–2 dakika bekle, sonra tekrar dene.
 
 **Kod nerede?**  
 → `/Users/onuralp/Downloads/winglish`  
